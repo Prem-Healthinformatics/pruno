@@ -226,6 +226,23 @@ export class GameRoom implements DurableObject {
                     }
                 }
                 break;
+
+            case 'CHAT':
+                // Broadcast encrypted chat message to all players
+                // Server doesn't decrypt - just passes through the encrypted message
+                const sender = this.gameState.players.find(p => p.id === action.payload.playerId);
+                if (sender) {
+                    this.broadcast({
+                        type: 'CHAT_MESSAGE',
+                        payload: {
+                            senderId: sender.id,
+                            senderName: sender.name,
+                            encryptedMessage: action.payload.encryptedMessage,
+                            timestamp: Date.now()
+                        }
+                    });
+                }
+                break;
         }
     }
 

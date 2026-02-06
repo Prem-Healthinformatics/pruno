@@ -1,7 +1,14 @@
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import type { GameAction, GameState } from '@pruno/shared';
 import { v4 as uuidv4 } from 'uuid';
+
+interface ChatMessageData {
+    senderId: string;
+    senderName: string;
+    encryptedMessage: string;
+    timestamp: number;
+}
 
 const getGuestId = () => {
     let id = localStorage.getItem('guestId');
@@ -14,6 +21,7 @@ const getGuestId = () => {
 
 export const useGameSocket = (roomId: string, playerName: string) => {
     const [gameState, setGameState] = useState<GameState | null>(null);
+    const [chatMessages, setChatMessages] = useState<ChatMessageData[]>([]);
     const socketRef = useRef<WebSocket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const playerId = getGuestId();
@@ -46,6 +54,8 @@ export const useGameSocket = (roomId: string, playerName: string) => {
                 const data = JSON.parse(event.data);
                 if (data.type === 'STATE_UPDATE') {
                     setGameState(data.payload);
+                } else if (data.type === 'CHAT_MESSAGE') {
+                    setChatMessages(prev => [...prev, data.payload]);
                 }
             } catch (e) {
                 console.error('Failed to parse message', e);
@@ -61,11 +71,18 @@ export const useGameSocket = (roomId: string, playerName: string) => {
         };
     }, [roomId, playerId, playerName]);
 
-    const sendAction = (action: GameAction) => {
+    const sendAction = useCallback((action: GameAction | { type: 'CHAT'; payload: { playerId: string; encryptedMessage: string } }) => {
         if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
             socketRef.current.send(JSON.stringify(action));
         }
-    };
+    }, []);
 
-    return { gameState, isConnected, sendAction, playerId };
+    const sendChatMessage = useCallback((encryptedMessage: string) => {
+        sendAction({
+            type: 'CHAT',
+            payload: { playerId, encryptedMessage }
+        });
+    }, [playerId, sendAction]);
+
+    return { gameState, isConnected, sendAction, sendChatMessage, chatMessages, playerId };
 };

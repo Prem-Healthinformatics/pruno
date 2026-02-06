@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useGameSocket } from '../hooks/useGameSocket';
 import { Card } from './Card';
+import { Chat } from './Chat';
 import { AnimatePresence, motion } from 'framer-motion';
 import { playSound } from '../utils/sound';
 import type { Card as CardType } from '@pruno/shared';
@@ -14,7 +15,7 @@ const colorStyles: Record<string, string> = {
 };
 
 export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: string }) => {
-    const { gameState, isConnected, sendAction, playerId } = useGameSocket(roomId, playerName);
+    const { gameState, isConnected, sendAction, sendChatMessage, chatMessages, playerId } = useGameSocket(roomId, playerName);
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [pendingCard, setPendingCard] = useState<CardType | null>(null);
 
@@ -270,6 +271,14 @@ export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: 
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Encrypted Chat */}
+            <Chat
+                roomId={roomId}
+                playerId={playerId}
+                onSendMessage={sendChatMessage}
+                incomingMessages={chatMessages}
+            />
         </div>
     );
 };

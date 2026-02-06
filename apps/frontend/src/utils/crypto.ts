@@ -6,9 +6,10 @@ const decoder = new TextDecoder();
 
 // Derive a crypto key from room code
 async function deriveKey(roomCode: string): Promise<CryptoKey> {
+    const keyData = encoder.encode(roomCode.padEnd(32, '0').slice(0, 32));
     const keyMaterial = await crypto.subtle.importKey(
         'raw',
-        encoder.encode(roomCode.padEnd(32, '0').slice(0, 32)), // Ensure 256-bit key
+        keyData.buffer,
         { name: 'AES-GCM' },
         false,
         ['encrypt', 'decrypt']
@@ -26,16 +27,19 @@ export async function encryptMessage(message: string, roomCode: string): Promise
     try {
         const key = await deriveKey(roomCode);
         const iv = generateIV();
+        const messageData = encoder.encode(message);
+
         const encrypted = await crypto.subtle.encrypt(
-            { name: 'AES-GCM', iv },
+            { name: 'AES-GCM', iv: iv.buffer as ArrayBuffer },
             key,
-            encoder.encode(message)
+            messageData.buffer
         );
 
         // Combine IV + encrypted data and encode as base64
-        const combined = new Uint8Array(iv.length + new Uint8Array(encrypted).length);
+        const encryptedArray = new Uint8Array(encrypted);
+        const combined = new Uint8Array(iv.length + encryptedArray.length);
         combined.set(iv);
-        combined.set(new Uint8Array(encrypted), iv.length);
+        combined.set(encryptedArray, iv.length);
 
         return btoa(String.fromCharCode(...combined));
     } catch (e) {
@@ -56,9 +60,9 @@ export async function decryptMessage(encryptedMessage: string, roomCode: string)
         const data = combined.slice(12);
 
         const decrypted = await crypto.subtle.decrypt(
-            { name: 'AES-GCM', iv },
+            { name: 'AES-GCM', iv: iv.buffer as ArrayBuffer },
             key,
-            data
+            data.buffer
         );
 
         return decoder.decode(decrypted);

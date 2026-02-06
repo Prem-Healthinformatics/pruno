@@ -246,6 +246,17 @@ export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: 
                     >
                         <span>📢</span> SHOUT UNO
                     </motion.button>
+
+                    {/* PASS Button (only visible if drawn) */}
+                    {isMyTurn && me?.hasDrawn && (
+                        <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => sendAction({ type: 'PASS_TURN', payload: { playerId } } as any)}
+                            className="px-4 py-1.5 md:px-6 md:py-2 rounded-full font-bold text-sm md:text-lg shadow-lg flex items-center gap-2 bg-gray-600 text-white hover:bg-gray-500"
+                        >
+                            <span>⏭️</span> PASS
+                        </motion.button>
+                    )}
                 </div>
 
                 {/* Scrollable Hand */}
@@ -265,7 +276,7 @@ export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: 
                                         layout
                                         initial={{ y: 100, opacity: 0, rotate: 10 }}
                                         animate={{
-                                            y: isPlayable ? -10 : 0, // Lift playable cards slightly 
+                                            y: isPlayable ? -10 : 0, // Lift playable cards slightly
                                             opacity: 1,
                                             rotate: (index - (me.hand.length - 1) / 2) * (me.hand.length > 8 ? 2 : 4),
                                             scale: 1,
@@ -286,7 +297,7 @@ export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: 
                 </div>
 
                 <div className="text-white/50 text-xs md:text-sm font-medium">
-                    {me ? (isMyTurn ? "Select a card to play" : "Waiting for your turn...") : "Spectating"}
+                    {me ? (isMyTurn ? (me.hasDrawn ? "Play your drawn card or Pass" : "Select a card to play") : "Waiting for your turn...") : "Spectating"}
                 </div>
             </div>
 
@@ -324,35 +335,57 @@ export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: 
                 )}
             </AnimatePresence>
 
-            {/* Game Over Modal */}
+            {/* Round Over / Game Over Modal */}
             <AnimatePresence>
-                {gameState.status === 'finished' && (
+                {(gameState.status === 'finished' || gameState.status === 'round_over') && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         className="fixed inset-0 bg-black/90 z-[70] flex flex-col items-center justify-center p-4 text-center"
                     >
-                        <h1 className="text-5xl md:text-7xl font-black text-white mb-6 animate-bounce">
-                            GAME OVER
+                        <h1 className="text-4xl md:text-6xl font-black text-white mb-6 animate-bounce">
+                            {gameState.status === 'finished' ? 'GAME OVER' : 'ROUND OVER'}
                         </h1>
-                        <div
-                            className="text-3xl md:text-5xl font-bold mb-8"
-                            style={{ color: gameState.winnerId === playerId ? '#22c55e' : '#eab308' }}
-                        >
-                            {gameState.winnerId === playerId ? "🏆 YOU WON! 🏆" : `${gameState.players.find(p => p.id === gameState.winnerId)?.name} WINS!`}
+
+                        <div className="text-2xl md:text-4xl font-bold mb-4" style={{ color: gameState.winnerId === playerId ? '#22c55e' : '#eab308' }}>
+                            {gameState.winnerId === playerId ? "🏆 YOU WON THE ROUND! 🏆" : `${gameState.players.find(p => p.id === gameState.winnerId)?.name} WINS THE ROUND!`}
                         </div>
-                        <button
-                            onClick={() => window.location.reload()}
-                            className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl font-bold text-white text-xl shadow-lg hover:scale-105 transition-transform"
-                        >
-                            Play Again
-                        </button>
+
+                        {/* Score Board */}
+                        <div className="bg-white/10 p-6 rounded-2xl mb-8 min-w-[300px]">
+                            <h3 className="text-white text-xl font-bold mb-4 border-b border-white/20 pb-2">SCORES</h3>
+                            <div className="flex flex-col gap-2">
+                                {gameState.players.map(p => (
+                                    <div key={p.id} className="flex justify-between items-center text-white">
+                                        <span>{p.name} {p.id === gameState.winnerId && '👑'}</span>
+                                        <span className="font-mono font-bold text-yellow-400">{p.score || 0} pts</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="mt-4 text-xs text-white/50">First to 500 wins!</div>
+                        </div>
+
+                        {gameState.status === 'finished' ? (
+                            <button
+                                onClick={() => window.location.reload()}
+                                className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl font-bold text-white text-xl shadow-lg hover:scale-105 transition-transform"
+                            >
+                                Play Again
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => sendAction({ type: 'NEXT_ROUND' } as any)}
+                                className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-2xl font-bold text-white text-xl shadow-lg hover:scale-105 transition-transform"
+                            >
+                                Start Next Round ➡️
+                            </button>
+                        )}
                     </motion.div>
                 )}
             </AnimatePresence>
 
             {/* Encrypted Chat */}
             <Chat roomId={roomId} playerId={playerId} onSendMessage={sendChatMessage} incomingMessages={chatMessages} />
-        </div>
+        </div >
     );
 };

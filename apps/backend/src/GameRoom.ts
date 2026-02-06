@@ -1,5 +1,5 @@
 import type { GameState, Player, Card } from '@pruno/shared';
-import { createDeck, canPlayCard, getNextTurnIndex } from '@pruno/shared';
+import { createDeck, canPlayCard, getNextTurnIndex, calculateHandPoints } from '@pruno/shared';
 
 interface WebSocketSession {
     webSocket: WebSocket;
@@ -120,7 +120,9 @@ export class GameRoom implements DurableObject {
                 const newPlayer: Player = {
                     id: action.payload.id || crypto.randomUUID(),
                     name: action.payload.name || 'Guest',
-                    hand: []
+                    hand: [],
+                    score: 0,
+                    hasDrawn: false
                 };
 
                 // Associate WebSocket with player using Attachment API for persistence
@@ -179,9 +181,11 @@ export class GameRoom implements DurableObject {
                 if (player && this.gameState.players[this.gameState.turnIndex].id === playerId) {
                     if (canPlayCard(card, topCard, this.gameState.currentColor)) {
                         player.hand = player.hand.filter(c => c.id !== card.id);
-                        this.gameState.discardPile.push(card);
 
+
+                        // Advance turn
                         let advanceTurnSteps = 1;
+                        this.gameState.players.forEach(p => p.hasDrawn = false);
 
                         if (card.value === 'skip') {
                             advanceTurnSteps = 2;
@@ -224,10 +228,24 @@ export class GameRoom implements DurableObject {
                             player.saidUno = false;
                         }
 
-                        // Check if they won
                         if (player.hand.length === 0) {
-                            this.gameState.status = 'finished';
-                            this.gameState.winnerId = player.id;
+                            // Round Over! Calculate scores
+                            let points = 0;
+                            this.gameState.players.forEach(p => {
+                                if (p.id !== player.id) {
+                                    points += calculateHandPoints(p.hand);
+                                }
+                            });
+
+                            player.score = (player.score || 0) + points;
+                            this.gameState.winnerId = player.id; // Round Winner
+
+                            if (player.score >= 500) {
+                                this.gameState.status = 'finished';
+                                this.gameState.matchWinnerId = player.id;
+                            } else {
+                                this.gameState.status = 'round_over';
+                            }
                         }
 
                         await this.saveAndBroadcast();
@@ -269,23 +287,97 @@ export class GameRoom implements DurableObject {
                 if (fullDeck && fullDeck.length > 0) {
                     const drawPlayer = this.gameState.players.find(p => p.id === action.payload.playerId);
                     if (drawPlayer && this.gameState.players[this.gameState.turnIndex].id === drawPlayer.id) {
+
+                        // If already drawn, cannot draw again (force pass usually, but button should be disabled)
+                        // Actually rules allow drawing instead of playing. Mmm. 
+                        // But if you drew once and it was playable, you must PLAY or PASS. Not Draw again.
+                        if (drawPlayer.hasDrawn) {
+                            return;
+                        }
+
                         const drawnCard = fullDeck.shift();
                         if (drawnCard) {
                             drawPlayer.hand.push(drawnCard);
                             drawPlayer.saidUno = false; // Safety reset
                             this.gameState.deckCount = fullDeck.length;
-                        }
 
-                        // Advance turn after drawing
-                        this.gameState.turnIndex = getNextTurnIndex(
-                            this.gameState.turnIndex,
-                            this.gameState.players.length,
-                            this.gameState.direction
-                        );
+                            // Check if playable
+                            const topCard = this.gameState.discardPile[this.gameState.discardPile.length - 1];
+                            const isPlayable = canPlayCard(drawnCard, topCard, this.gameState.currentColor);
+
+                            if (isPlayable) {
+                                // User CAN play this card.
+                                // Do NOT advance turn. Mark as hasDrawn.
+                                drawPlayer.hasDrawn = true;
+                                this.broadcast({ type: 'NOTIFICATION', message: `${drawPlayer.name} drew a card and can play it!` });
+                            } else {
+                                // Cannot play. Auto-pass.
+                                this.broadcast({ type: 'NOTIFICATION', message: `${drawPlayer.name} drew a card (skipping turn).` });
+                                this.gameState.turnIndex = getNextTurnIndex(
+                                    this.gameState.turnIndex,
+                                    this.gameState.players.length,
+                                    this.gameState.direction
+                                );
+                                drawPlayer.hasDrawn = false; // Reset
+                            }
+                        } else {
+                            // Deck empty? Should reshuffle (todo)
+                        }
 
                         await this.saveAndBroadcast();
                     }
                 }
+                break;
+
+            case 'PASS_TURN':
+                const passPlayer = this.gameState.players.find(p => p.id === action.payload.playerId);
+                if (passPlayer &&
+                    this.gameState.players[this.gameState.turnIndex].id === passPlayer.id &&
+                    passPlayer.hasDrawn) {
+
+                    // User chose to pass after drawing a playable card
+                    this.broadcast({ type: 'NOTIFICATION', message: `${passPlayer.name} passed.` });
+
+                    passPlayer.hasDrawn = false;
+                    this.gameState.turnIndex = getNextTurnIndex(
+                        this.gameState.turnIndex,
+                        this.gameState.players.length,
+                        this.gameState.direction
+                    );
+                    await this.saveAndBroadcast();
+                }
+                break;
+
+            case 'NEXT_ROUND':
+                if (this.gameState.status !== 'round_over') return;
+
+                // Reset for next round
+                const newDeck = createDeck();
+
+                // Deal 7 cards to everyone
+                this.gameState.players.forEach(player => {
+                    player.hand = newDeck.splice(0, 7);
+                    player.saidUno = false;
+                });
+
+                // Start card
+                let fCard = newDeck.shift()!;
+                while (fCard.color === 'wild') {
+                    newDeck.push(fCard);
+                    fCard = newDeck.shift()!;
+                }
+
+                this.gameState.discardPile = [fCard];
+                this.gameState.currentColor = fCard.color;
+                this.gameState.deckCount = newDeck.length;
+                (this.gameState as any).fullDeck = newDeck;
+
+                this.gameState.status = 'playing';
+                this.gameState.turnIndex = 0;
+                this.gameState.direction = 1;
+                this.gameState.winnerId = undefined; // Clear round winner
+
+                await this.saveAndBroadcast();
                 break;
 
             case 'CHAT':

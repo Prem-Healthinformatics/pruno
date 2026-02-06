@@ -17,3 +17,4 @@ Object.defineProperty(exports, "__esModule", { value: true });
 __exportStar(require("./types"), exports);
 __exportStar(require("./deck"), exports);
 __exportStar(require("./validation"), exports);
+__exportStar(require("./scoring"), exports);

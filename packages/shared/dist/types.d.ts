@@ -8,9 +8,9 @@ export interface Card {
 export interface Player {
     id: string;
     name: string;
-    hand: Card[];
-    isAudience?: boolean;
     saidUno?: boolean;
+    score?: number;
+    hasDrawn?: boolean;
 }
 export interface GameState {
     roomId: string;
@@ -19,11 +19,12 @@ export interface GameState {
     discardPile: Card[];
     turnIndex: number;
     direction: 1 | -1;
-    status: 'waiting' | 'playing' | 'finished';
+    status: 'waiting' | 'playing' | 'round_over' | 'finished';
     winnerId?: string;
+    matchWinnerId?: string;
     currentColor: Color;
 }
 export interface GameAction {
-    type: 'JOIN' | 'START' | 'PLAY_CARD' | 'DRAW_CARD' | 'SAY_UNO' | 'CATCH_UNO';
+    type: 'JOIN' | 'START' | 'PLAY_CARD' | 'DRAW_CARD' | 'SAY_UNO' | 'CATCH_UNO' | 'NEXT_ROUND' | 'PASS_TURN';
     payload?: any;
 }

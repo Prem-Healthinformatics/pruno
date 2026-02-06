@@ -11,9 +11,9 @@ export interface Card {
 export interface Player {
     id: string; // Guest ID or Socket ID
     name: string;
-    hand: Card[];
-    isAudience?: boolean;
     saidUno?: boolean;
+    score?: number;
+    hasDrawn?: boolean;
 }
 
 export interface GameState {
@@ -23,12 +23,13 @@ export interface GameState {
     discardPile: Card[]; // Top card is visible
     turnIndex: number;
     direction: 1 | -1; // 1 = Clockwise, -1 = Counter-Clockwise
-    status: 'waiting' | 'playing' | 'finished';
-    winnerId?: string;
+    status: 'waiting' | 'playing' | 'round_over' | 'finished';
+    winnerId?: string; // Round winner
+    matchWinnerId?: string; // Game winner (>= 500)
     currentColor: Color; // For wild cards, the chosen color
 }
 
 export interface GameAction {
-    type: 'JOIN' | 'START' | 'PLAY_CARD' | 'DRAW_CARD' | 'SAY_UNO' | 'CATCH_UNO';
+    type: 'JOIN' | 'START' | 'PLAY_CARD' | 'DRAW_CARD' | 'SAY_UNO' | 'CATCH_UNO' | 'NEXT_ROUND' | 'PASS_TURN';
     payload?: any;
 }

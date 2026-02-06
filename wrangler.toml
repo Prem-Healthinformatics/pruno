@@ -2,6 +2,10 @@ name = "pruno-backend"
 main = "apps/backend/src/index.ts"
 compatibility_date = "2024-01-01"
 
+# Tell Cloudflare to use npm install instead of npm ci
+[build]
+command = "npm install && npm run build -w packages/shared"
+
 [durable_objects]
 bindings = [
     { name = "GAME_ROOM", class_name = "GameRoom" }

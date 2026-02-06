@@ -1,37 +1,44 @@
-
-import { WebSocketServer, WebSocket } from 'ws';
 import { GameRoom } from './GameRoom';
-import { createServer } from 'http';
-import { parse } from 'url';
 
-const port = 8787;
-const server = createServer();
-const wss = new WebSocketServer({ server });
+export interface Env {
+    GAME_ROOM: DurableObjectNamespace;
+}
 
-const rooms = new Map<string, GameRoom>();
+export { GameRoom };
 
-wss.on('connection', (ws, req) => {
-    const { pathname } = parse(req.url || '', true);
-    // Expected format: /api/room/:id
-    const match = pathname?.match(/\/api\/room\/([^\/]+)/);
+export default {
+    async fetch(request: Request, env: Env): Promise<Response> {
+        const url = new URL(request.url);
 
-    if (!match) {
-        ws.close(1008, 'Invalid Room URL');
-        return;
-    }
+        // Handle CORS preflight
+        if (request.method === 'OPTIONS') {
+            return new Response(null, {
+                headers: {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                    'Access-Control-Allow-Headers': '*',
+                },
+            });
+        }
 
-    const roomId = match[1];
-    console.log(`Connection to room: ${roomId}`);
+        // Route: /api/room/:roomId
+        const match = url.pathname.match(/^\/api\/room\/([A-Z0-9]+)$/i);
+        if (match) {
+            const roomId = match[1].toUpperCase();
 
-    let room = rooms.get(roomId);
-    if (!room) {
-        room = new GameRoom(roomId);
-        rooms.set(roomId, room);
-    }
+            // Get or create the Durable Object for this room
+            const id = env.GAME_ROOM.idFromName(roomId);
+            const room = env.GAME_ROOM.get(id);
 
-    room.handleConnection(ws);
-});
+            // Forward the request to the Durable Object
+            return room.fetch(request);
+        }
 
-server.listen(port, () => {
-    console.log(`Server listening on port ${port}`);
-});
+        // Health check
+        if (url.pathname === '/health') {
+            return new Response('OK', { status: 200 });
+        }
+
+        return new Response('Not Found', { status: 404 });
+    },
+};

@@ -1,20 +1,27 @@
 {
     "compilerOptions": {
-        "target": "esnext",
-        "module": "esnext",
+        "target": "ES2022",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
         "lib": [
-            "esnext",
-            "dom"
+            "ES2022"
         ],
         "types": [
             "@cloudflare/workers-types"
         ],
-        "moduleResolution": "bundler",
-        "esModuleInterop": true,
         "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "outDir": "./dist",
+        "declaration": true,
         "noEmit": true
     },
     "include": [
         "src/**/*"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist"
     ]
 }

@@ -21,9 +21,12 @@ export const useGameSocket = (roomId: string, playerName: string) => {
     useEffect(() => {
         if (!roomId) return;
 
+        // In dev, use localhost. In prod, use the same domain but upgrade to WSS
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = import.meta.env.DEV ? 'localhost:8787' : window.location.host;
-        const wsUrl = `${protocol}//${host}/api/room/${roomId}`;
+        const backendHost = import.meta.env.DEV
+            ? 'localhost:8787'
+            : (import.meta.env.VITE_BACKEND_URL || window.location.host.replace('pruno.pages.dev', 'pruno-backend.workers.dev'));
+        const wsUrl = `${protocol}//${backendHost}/api/room/${roomId}`;
 
         const ws = new WebSocket(wsUrl);
         socketRef.current = ws;

@@ -1,26 +1,20 @@
-import { WebSocket } from 'ws';
 import type { GameState, Player, Card } from '@pruno/shared';
 import { createDeck, canPlayCard, getNextTurnIndex } from '@pruno/shared';
 
-// Helper for broadcasting
-const broadcast = (connections: WebSocket[], message: any) => {
-    const data = JSON.stringify(message);
-    connections.forEach(ws => {
-        if (ws.readyState === WebSocket.OPEN) {
-            ws.send(data);
-        }
-    });
-};
+interface WebSocketSession {
+    webSocket: WebSocket;
+    playerId?: string;
+}
 
-export class GameRoom {
-    sessions: WebSocket[] = [];
+export class GameRoom implements DurableObject {
+    state: DurableObjectState;
+    sessions: WebSocketSession[] = [];
     gameState: GameState;
-    roomId: string;
 
-    constructor(roomId: string) {
-        this.roomId = roomId;
+    constructor(state: DurableObjectState) {
+        this.state = state;
         this.gameState = {
-            roomId: roomId,
+            roomId: '',
             players: [],
             deckCount: 0,
             discardPile: [],
@@ -29,26 +23,65 @@ export class GameRoom {
             status: 'waiting',
             currentColor: 'red'
         };
-    }
 
-    handleConnection(ws: WebSocket) {
-        this.sessions.push(ws);
-
-        ws.on('message', (data) => {
-            try {
-                const action = JSON.parse(data.toString());
-                this.handleAction(ws, action);
-            } catch (e) {
-                console.error("Error parsing message", e);
+        // Restore state from storage
+        this.state.blockConcurrencyWhile(async () => {
+            const stored = await this.state.storage.get<GameState>('gameState');
+            if (stored) {
+                this.gameState = stored;
             }
         });
-
-        ws.on('close', () => {
-            this.sessions = this.sessions.filter(s => s !== ws);
-        });
     }
 
-    handleAction(ws: WebSocket, action: any) {
+    async fetch(request: Request): Promise<Response> {
+        const url = new URL(request.url);
+
+        // Extract room ID from URL
+        const match = url.pathname.match(/\/api\/room\/([A-Z0-9]+)/i);
+        if (match && !this.gameState.roomId) {
+            this.gameState.roomId = match[1].toUpperCase();
+        }
+
+        // Handle WebSocket upgrade
+        if (request.headers.get('Upgrade') === 'websocket') {
+            const pair = new WebSocketPair();
+            const [client, server] = Object.values(pair);
+
+            this.state.acceptWebSocket(server);
+            this.sessions.push({ webSocket: server });
+
+            return new Response(null, {
+                status: 101,
+                webSocket: client,
+                headers: {
+                    'Access-Control-Allow-Origin': '*',
+                }
+            });
+        }
+
+        return new Response('Expected WebSocket', { status: 400 });
+    }
+
+    async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+        try {
+            const data = typeof message === 'string' ? message : new TextDecoder().decode(message);
+            const action = JSON.parse(data);
+            await this.handleAction(ws, action);
+        } catch (e) {
+            console.error('Error handling message:', e);
+        }
+    }
+
+    async webSocketClose(ws: WebSocket) {
+        this.sessions = this.sessions.filter(s => s.webSocket !== ws);
+    }
+
+    async webSocketError(ws: WebSocket, error: unknown) {
+        console.error('WebSocket error:', error);
+        this.sessions = this.sessions.filter(s => s.webSocket !== ws);
+    }
+
+    private async handleAction(ws: WebSocket, action: any) {
         switch (action.type) {
             case 'JOIN':
                 if (this.gameState.players.length >= 6) {
@@ -62,17 +95,23 @@ export class GameRoom {
                     hand: []
                 };
 
+                // Associate WebSocket with player
+                const session = this.sessions.find(s => s.webSocket === ws);
+                if (session) {
+                    session.playerId = newPlayer.id;
+                }
+
                 const existingIdx = this.gameState.players.findIndex(p => p.id === newPlayer.id);
                 if (existingIdx === -1) {
                     this.gameState.players.push(newPlayer);
                 }
 
-                this.broadcastState();
+                await this.saveAndBroadcast();
                 break;
 
             case 'START':
                 if (this.gameState.status !== 'waiting') return;
-                if (this.gameState.players.length < 1) return;
+                if (this.gameState.players.length < 2) return;
 
                 const deck = createDeck();
 
@@ -94,7 +133,7 @@ export class GameRoom {
                 this.gameState.status = 'playing';
                 this.gameState.turnIndex = 0;
 
-                this.broadcastState();
+                await this.saveAndBroadcast();
                 break;
 
             case 'PLAY_CARD':
@@ -106,38 +145,39 @@ export class GameRoom {
 
                 if (player && this.gameState.players[this.gameState.turnIndex].id === playerId) {
                     if (canPlayCard(card, topCard, this.gameState.currentColor)) {
-                        // Remove card from hand
                         player.hand = player.hand.filter(c => c.id !== card.id);
                         this.gameState.discardPile.push(card);
 
-                        // Handle Special Card Effects
-                        let advanceTurnBytes = 1;
+                        let advanceTurnSteps = 1;
 
                         if (card.value === 'skip') {
-                            advanceTurnBytes = 2; // Skip next player
+                            advanceTurnSteps = 2;
                         } else if (card.value === 'reverse') {
                             this.gameState.direction *= -1;
                             if (this.gameState.players.length === 2) {
-                                advanceTurnBytes = 2; // In 2-player, reverse acts like skip
+                                advanceTurnSteps = 2;
                             }
                         } else if (card.value === 'draw_two') {
-                            advanceTurnBytes = 2; // Skip next player who draws
+                            advanceTurnSteps = 2;
                             const nextPIdx = getNextTurnIndex(this.gameState.turnIndex, this.gameState.players.length, this.gameState.direction);
                             const nextPlayer = this.gameState.players[nextPIdx];
                             const fullDeck = (this.gameState as any).fullDeck as Card[];
-                            nextPlayer.hand.push(...fullDeck.splice(0, 2));
-                            this.gameState.deckCount = fullDeck.length;
+                            if (fullDeck && fullDeck.length >= 2) {
+                                nextPlayer.hand.push(...fullDeck.splice(0, 2));
+                                this.gameState.deckCount = fullDeck.length;
+                            }
                         } else if (card.value === 'wild_draw_four') {
-                            advanceTurnBytes = 2; // Skip next player who draws
+                            advanceTurnSteps = 2;
                             const nextPIdx = getNextTurnIndex(this.gameState.turnIndex, this.gameState.players.length, this.gameState.direction);
                             const nextPlayer = this.gameState.players[nextPIdx];
                             const fullDeck = (this.gameState as any).fullDeck as Card[];
-                            nextPlayer.hand.push(...fullDeck.splice(0, 4));
-                            this.gameState.deckCount = fullDeck.length;
+                            if (fullDeck && fullDeck.length >= 4) {
+                                nextPlayer.hand.push(...fullDeck.splice(0, 4));
+                                this.gameState.deckCount = fullDeck.length;
+                            }
                         }
 
-                        // Update turn based on calculated steps (usually 1, or 2 if skipped)
-                        for (let i = 0; i < advanceTurnBytes; i++) {
+                        for (let i = 0; i < advanceTurnSteps; i++) {
                             this.gameState.turnIndex = getNextTurnIndex(this.gameState.turnIndex, this.gameState.players.length, this.gameState.direction);
                         }
 
@@ -147,13 +187,12 @@ export class GameRoom {
                             this.gameState.currentColor = action.payload.chosenColor || 'red';
                         }
 
-                        // Check Game Over
                         if (player.hand.length === 0) {
                             this.gameState.status = 'finished';
                             this.gameState.winnerId = player.id;
                         }
 
-                        this.broadcastState();
+                        await this.saveAndBroadcast();
                     }
                 }
                 break;
@@ -161,45 +200,67 @@ export class GameRoom {
             case 'SAY_UNO':
                 const shouter = this.gameState.players.find(p => p.id === action.payload.playerId);
                 if (shouter && shouter.hand.length === 1) {
-                    broadcast(this.sessions, { type: 'NOTIFICATION', message: `${shouter.name} shouted UNO!` });
+                    this.broadcast({ type: 'NOTIFICATION', message: `${shouter.name} shouted UNO!` });
                 }
                 break;
 
             case 'DRAW_CARD':
                 const fullDeck = (this.gameState as any).fullDeck as Card[];
                 if (fullDeck && fullDeck.length > 0) {
-                    const player = this.gameState.players.find(p => p.id === action.payload.playerId);
-                    if (player && this.gameState.players[this.gameState.turnIndex].id === player.id) {
-                        // Draw exactly ONE card
+                    const drawPlayer = this.gameState.players.find(p => p.id === action.payload.playerId);
+                    if (drawPlayer && this.gameState.players[this.gameState.turnIndex].id === drawPlayer.id) {
                         const drawnCard = fullDeck.shift();
                         if (drawnCard) {
-                            player.hand.push(drawnCard);
+                            drawPlayer.hand.push(drawnCard);
                             this.gameState.deckCount = fullDeck.length;
                         }
 
-                        // After drawing, advance the turn (official Uno rules)
-                        // Player drew and their turn is now over
+                        // Advance turn after drawing
                         this.gameState.turnIndex = getNextTurnIndex(
                             this.gameState.turnIndex,
                             this.gameState.players.length,
                             this.gameState.direction
                         );
 
-                        this.broadcastState();
+                        await this.saveAndBroadcast();
                     }
                 }
                 break;
         }
     }
 
-    broadcastState() {
+    private async saveAndBroadcast() {
+        // Save state (but not the full deck to save space)
+        const stateToSave = { ...this.gameState };
+        delete (stateToSave as any).fullDeck;
+        await this.state.storage.put('gameState', stateToSave);
+
+        this.broadcastState();
+    }
+
+    private broadcastState() {
         const sanitizedState = JSON.parse(JSON.stringify(this.gameState));
         delete sanitizedState.fullDeck;
 
-        this.sessions.forEach(ws => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'STATE_UPDATE', payload: sanitizedState }));
+        const message = JSON.stringify({ type: 'STATE_UPDATE', payload: sanitizedState });
+
+        for (const session of this.sessions) {
+            try {
+                session.webSocket.send(message);
+            } catch (e) {
+                // WebSocket may be closed
             }
-        });
+        }
+    }
+
+    private broadcast(message: any) {
+        const data = JSON.stringify(message);
+        for (const session of this.sessions) {
+            try {
+                session.webSocket.send(data);
+            } catch (e) {
+                // WebSocket may be closed
+            }
+        }
     }
 }

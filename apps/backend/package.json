@@ -2,17 +2,16 @@
     "name": "pruno-backend",
     "version": "1.0.0",
     "scripts": {
-        "dev": "tsx src/index.ts",
+        "dev": "wrangler dev",
+        "deploy": "wrangler deploy",
         "build": "tsc"
     },
     "dependencies": {
-        "@pruno/shared": "*",
-        "ws": "^8.18.0"
+        "@pruno/shared": "*"
     },
     "devDependencies": {
-        "@types/node": "^20.0.0",
-        "@types/ws": "^8.5.10",
-        "tsx": "^4.7.0",
-        "typescript": "^5.3.0"
+        "@cloudflare/workers-types": "^4.20240101.0",
+        "typescript": "^5.3.0",
+        "wrangler": "^3.0.0"
     }
 }

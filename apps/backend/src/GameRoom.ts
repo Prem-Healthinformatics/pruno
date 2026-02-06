@@ -84,6 +84,29 @@ export class GameRoom implements DurableObject {
     private async handleAction(ws: WebSocket, action: any) {
         switch (action.type) {
             case 'JOIN':
+                // Check for existing player (reconnecting)
+                const existingPlayer = this.gameState.players.find(p => p.id === action.payload.id);
+
+                if (existingPlayer) {
+                    // Player is reconnecting - update their WebSocket
+                    const session = this.sessions.find(s => s.webSocket === ws);
+                    if (session) {
+                        session.playerId = existingPlayer.id;
+                    }
+                    // Send them the current state immediately
+                    ws.send(JSON.stringify({
+                        type: 'STATE_UPDATE',
+                        payload: this.getClientState(existingPlayer.id)
+                    }));
+                    return;
+                }
+
+                // New player trying to join
+                if (this.gameState.status !== 'waiting') {
+                    ws.send(JSON.stringify({ type: 'ERROR', message: 'Game already in progress' }));
+                    return;
+                }
+
                 if (this.gameState.players.length >= 6) {
                     ws.send(JSON.stringify({ type: 'ERROR', message: 'Room full' }));
                     return;
@@ -101,11 +124,7 @@ export class GameRoom implements DurableObject {
                     session.playerId = newPlayer.id;
                 }
 
-                const existingIdx = this.gameState.players.findIndex(p => p.id === newPlayer.id);
-                if (existingIdx === -1) {
-                    this.gameState.players.push(newPlayer);
-                }
-
+                this.gameState.players.push(newPlayer);
                 await this.saveAndBroadcast();
                 break;
 

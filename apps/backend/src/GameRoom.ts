@@ -308,10 +308,8 @@ export class GameRoom implements DurableObject {
     }
 
     private async saveAndBroadcast() {
-        // Save state (but not the full deck to save space)
-        const stateToSave = { ...this.gameState };
-        delete (stateToSave as any).fullDeck;
-        await this.state.storage.put('gameState', stateToSave);
+        // Save state INCLUDING the full deck so it persists across server restarts
+        await this.state.storage.put('gameState', this.gameState);
 
         this.broadcastState();
     }

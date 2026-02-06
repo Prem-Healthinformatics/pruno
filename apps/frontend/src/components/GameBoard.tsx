@@ -69,14 +69,27 @@ export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: 
         <div className="h-[100dvh] w-full bg-gradient-to-br from-emerald-900 via-teal-900 to-cyan-900 flex flex-col overflow-hidden relative touch-none">
 
             {/* Header: Room Code & Turn (Compact) */}
-            <div className="flex justify-between items-center p-3 md:p-6 z-30">
-                <div className="bg-black/30 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-lg border border-white/10">
-                    <span className="text-[10px] md:text-xs text-white/60 uppercase tracking-widest block">Room</span>
-                    <span className="text-lg md:text-xl font-black text-white tracking-widest">{roomId}</span>
+            <div className="flex justify-between items-start md:items-center p-3 md:p-6 z-30 pointer-events-none">
+                {/* Room Code with Copy Button */}
+                <div className="bg-black/40 backdrop-blur-md p-1.5 md:p-2 rounded-xl border border-white/10 pointer-events-auto flex items-center gap-2 md:gap-3 shadow-lg">
+                    <div className="px-2">
+                        <span className="text-[10px] md:text-xs text-white/60 uppercase tracking-widest block">Room Code</span>
+                        <span className="text-xl md:text-2xl font-black text-white tracking-widest leading-none font-mono">{roomId}</span>
+                    </div>
+                    <button
+                        onClick={() => {
+                            navigator.clipboard.writeText(roomId);
+                            // Simple visual feedback could be added here
+                        }}
+                        className="bg-white/10 hover:bg-white/20 active:bg-white/30 p-2 rounded-lg transition-colors"
+                        title="Copy Code"
+                    >
+                        📋
+                    </button>
                 </div>
 
                 {gameState.status === 'playing' && (
-                    <div className="bg-black/30 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-lg border border-white/10 text-right">
+                    <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-xl border border-white/10 text-right shadow-lg pointer-events-auto">
                         <span className="text-[10px] md:text-xs text-white/60 uppercase tracking-widest block">Current Turn</span>
                         <span className={`text-base md:text-xl font-bold ${isMyTurn ? 'text-green-400 animate-pulse' : 'text-white'}`}>
                             {isMyTurn ? '🎯 YOUR TURN' : currentPlayer?.name}
@@ -199,18 +212,16 @@ export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: 
             </div>
 
             {/* Waiting: Start Game Button */}
-            {gameState.status === 'waiting' && (
-                <div className="absolute inset-0 z-40 bg-black/60 flex items-center justify-center backdrop-blur-sm">
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => sendAction({ type: 'START' })}
-                        className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-black text-2xl rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.5)] border border-green-400"
-                    >
-                        START GAME
-                    </motion.button>
-                </div>
-            )}
+            {gameState.status === 'waiting' && <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center pointer-events-none">
+                <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => sendAction({ type: 'START' })}
+                    className="pointer-events-auto px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-black text-2xl rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.5)] border border-green-400"
+                >
+                    START GAME
+                </motion.button>
+            </div>}
 
             {/* Player's Hand Area */}
             <div className="w-full flex flex-col items-center pb-safe-area z-30 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-4 md:pt-8 min-h-[160px] md:min-h-[220px]">
@@ -229,8 +240,8 @@ export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: 
                         onClick={() => sendAction({ type: 'SAY_UNO', payload: { playerId } })}
                         disabled={!me || me.hand.length > 2 || me.saidUno}
                         className={`px-4 py-1.5 md:px-6 md:py-2 rounded-full font-bold text-sm md:text-lg shadow-lg flex items-center gap-2 ${me && me.hand.length <= 2 && !me.saidUno
-                                ? 'bg-orange-500 text-white animate-bounce'
-                                : 'bg-gray-700/50 text-white/30 cursor-not-allowed'
+                            ? 'bg-orange-500 text-white animate-bounce'
+                            : 'bg-gray-700/50 text-white/30 cursor-not-allowed'
                             }`}
                     >
                         <span>📢</span> SHOUT UNO

@@ -94,9 +94,11 @@ export class GameRoom implements DurableObject {
                         session.playerId = existingPlayer.id;
                     }
                     // Send them the current state immediately
+                    const sanitizedState = JSON.parse(JSON.stringify(this.gameState));
+                    delete sanitizedState.fullDeck;
                     ws.send(JSON.stringify({
                         type: 'STATE_UPDATE',
-                        payload: this.getClientState(existingPlayer.id)
+                        payload: sanitizedState
                     }));
                     return;
                 }

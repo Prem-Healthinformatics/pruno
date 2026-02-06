@@ -1,0 +1,68 @@
+
+import { useEffect, useRef, useState } from 'react';
+import type { GameAction, GameState } from '@pruno/shared';
+import { v4 as uuidv4 } from 'uuid';
+
+const getGuestId = () => {
+    let id = localStorage.getItem('guestId');
+    if (!id) {
+        id = uuidv4();
+        localStorage.setItem('guestId', id);
+    }
+    return id;
+};
+
+export const useGameSocket = (roomId: string, playerName: string) => {
+    const [gameState, setGameState] = useState<GameState | null>(null);
+    const socketRef = useRef<WebSocket | null>(null);
+    const [isConnected, setIsConnected] = useState(false);
+    const playerId = getGuestId();
+
+    useEffect(() => {
+        if (!roomId) return;
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = import.meta.env.DEV ? 'localhost:8787' : window.location.host;
+        const wsUrl = `${protocol}//${host}/api/room/${roomId}`;
+
+        const ws = new WebSocket(wsUrl);
+        socketRef.current = ws;
+
+        ws.onopen = () => {
+            console.log('Connected to room', roomId);
+            setIsConnected(true);
+            // Auto-join with the custom player name
+            ws.send(JSON.stringify({
+                type: 'JOIN',
+                payload: { id: playerId, name: playerName }
+            }));
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'STATE_UPDATE') {
+                    setGameState(data.payload);
+                }
+            } catch (e) {
+                console.error('Failed to parse message', e);
+            }
+        };
+
+        ws.onclose = () => {
+            setIsConnected(false);
+        };
+
+        return () => {
+            ws.close();
+        };
+    }, [roomId, playerId, playerName]);
+
+    const sendAction = (action: GameAction) => {
+        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+            socketRef.current.send(JSON.stringify(action));
+        }
+    };
+
+    return { gameState, isConnected, sendAction, playerId };
+};

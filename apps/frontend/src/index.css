@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background: #1a1a2e;
+  color: white;
+  font-family: 'Inter', sans-serif;
+  overflow: hidden; /* Prevent scrolling in game */
+}

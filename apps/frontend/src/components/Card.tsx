@@ -42,12 +42,12 @@ export const Card = ({ card, onClick, disabled }: CardProps) => {
                 background: style.bg,
                 boxShadow: style.shadow,
             }}
-            className={`relative w-24 h-36 rounded-2xl flex items-center justify-center cursor-pointer border-4 border-white/80 select-none transition-all ${disabled ? 'opacity-60 cursor-not-allowed grayscale-[30%]' : 'hover:border-yellow-300'}`}
+            className={`relative w-full h-full aspect-[2/3] rounded-xl md:rounded-2xl flex items-center justify-center cursor-pointer border-[3px] md:border-4 border-white/80 select-none transition-all ${disabled ? 'opacity-60 cursor-not-allowed grayscale-[30%]' : 'hover:border-yellow-300'}`}
         >
             {/* Inner oval */}
-            <div className="absolute inset-2 bg-white/95 rounded-[40%] flex items-center justify-center rotate-[15deg]">
+            <div className="absolute inset-1.5 md:inset-2 bg-white/95 rounded-[40%] flex items-center justify-center rotate-[15deg]">
                 <span
-                    className={`font-black text-transparent bg-clip-text drop-shadow-sm ${isSpecial ? 'text-4xl' : 'text-5xl'}`}
+                    className={`font-black text-transparent bg-clip-text drop-shadow-sm ${isSpecial ? 'text-2xl md:text-4xl' : 'text-3xl md:text-5xl'}`}
                     style={{
                         backgroundImage: style.bg,
                         WebkitBackgroundClip: 'text',
@@ -58,12 +58,12 @@ export const Card = ({ card, onClick, disabled }: CardProps) => {
             </div>
 
             {/* Top-left corner value */}
-            <div className="absolute top-2 left-2 text-white font-black text-lg drop-shadow-md">
+            <div className="absolute top-1 left-1.5 md:top-2 md:left-2 text-white font-black text-xs md:text-lg drop-shadow-md leading-none">
                 {displayValue}
             </div>
 
             {/* Bottom-right corner value (rotated) */}
-            <div className="absolute bottom-2 right-2 text-white font-black text-lg drop-shadow-md rotate-180">
+            <div className="absolute bottom-1 right-1.5 md:bottom-2 md:right-2 text-white font-black text-xs md:text-lg drop-shadow-md rotate-180 leading-none">
                 {displayValue}
             </div>
         </motion.div>

@@ -19,12 +19,13 @@ export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: 
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [pendingCard, setPendingCard] = useState<CardType | null>(null);
 
+    // Initial Loading/Connecting States
     if (!isConnected) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
+            <div className="min-h-screen h-[100dvh] bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
                 <div className="text-center">
-                    <div className="animate-spin w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                    <p className="text-white text-xl">Connecting to Room <span className="font-bold text-purple-400">{roomId}</span>...</p>
+                    <div className="animate-spin w-12 h-12 md:w-16 md:h-16 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p className="text-white text-lg md:text-xl">Connecting to Room <span className="font-bold text-purple-400">{roomId}</span>...</p>
                 </div>
             </div>
         );
@@ -32,7 +33,7 @@ export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: 
 
     if (!gameState) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
+            <div className="min-h-screen h-[100dvh] bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
                 <p className="text-white text-xl">Waiting for game state...</p>
             </div>
         );
@@ -65,139 +66,188 @@ export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: 
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-teal-900 to-cyan-900 flex flex-col items-center justify-between p-4 overflow-hidden relative">
+        <div className="h-[100dvh] w-full bg-gradient-to-br from-emerald-900 via-teal-900 to-cyan-900 flex flex-col overflow-hidden relative touch-none">
 
-            {/* Room Code Badge */}
-            <div className="absolute top-4 left-4 z-50 bg-black/40 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/20">
-                <span className="text-xs text-white/60 uppercase tracking-widest block">Room</span>
-                <span className="text-2xl font-black text-white tracking-widest">{roomId}</span>
+            {/* Header: Room Code & Turn (Compact) */}
+            <div className="flex justify-between items-center p-3 md:p-6 z-30">
+                <div className="bg-black/30 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-lg border border-white/10">
+                    <span className="text-[10px] md:text-xs text-white/60 uppercase tracking-widest block">Room</span>
+                    <span className="text-lg md:text-xl font-black text-white tracking-widest">{roomId}</span>
+                </div>
+
+                {gameState.status === 'playing' && (
+                    <div className="bg-black/30 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-lg border border-white/10 text-right">
+                        <span className="text-[10px] md:text-xs text-white/60 uppercase tracking-widest block">Current Turn</span>
+                        <span className={`text-base md:text-xl font-bold ${isMyTurn ? 'text-green-400 animate-pulse' : 'text-white'}`}>
+                            {isMyTurn ? '🎯 YOUR TURN' : currentPlayer?.name}
+                        </span>
+                    </div>
+                )}
             </div>
 
-            {/* Turn Indicator */}
-            {gameState.status === 'playing' && (
-                <div className="absolute top-4 right-4 z-50 bg-black/40 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/20">
-                    <span className="text-xs text-white/60 uppercase tracking-widest block">Current Turn</span>
-                    <span className={`text-xl font-bold ${isMyTurn ? 'text-green-400' : 'text-white'}`}>
-                        {isMyTurn ? '🎯 YOUR TURN!' : currentPlayer?.name}
-                    </span>
+            {/* Opponents Area: Horizontal Scroll */}
+            <div className="flex-1 flex justify-center items-start pt-2 px-2 overflow-x-auto overflow-y-hidden no-scrollbar w-full z-20">
+                <div className="flex gap-3 md:gap-6 px-4">
+                    {others.map(player => {
+                        const isTheirTurn = gameState.players[gameState.turnIndex]?.id === player.id;
+                        return (
+                            <motion.div
+                                key={player.id}
+                                animate={{ scale: isTheirTurn ? 1.05 : 1 }}
+                                className={`flex flex-col items-center p-2 md:p-3 rounded-xl min-w-[70px] md:min-w-[100px] transition-colors ${isTheirTurn ? 'bg-yellow-500/20 ring-1 ring-yellow-400' : 'bg-black/20'}`}
+                            >
+                                <div className="relative">
+                                    <div className={`w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center font-bold text-sm md:text-xl mb-1 shadow-lg ${isTheirTurn ? 'bg-yellow-400 text-black' : 'bg-indigo-600 text-white'}`}>
+                                        {player.name[0].toUpperCase()}
+                                    </div>
+                                    <div className="absolute -bottom-1 -right-1 bg-gray-800 text-white text-[10px] px-1.5 rounded-full border border-gray-600">
+                                        {player.hand.length}
+                                    </div>
+                                </div>
+                                <span className="text-xs md:text-sm text-white font-medium mt-1 truncate max-w-[80px] text-center">
+                                    {player.name}
+                                </span>
+                            </motion.div>
+                        );
+                    })}
                 </div>
-            )}
-
-            {/* Opponents Area */}
-            <div className="flex justify-center gap-6 py-4 w-full max-w-4xl">
-                {others.map(player => {
-                    const isTheirTurn = gameState.players[gameState.turnIndex]?.id === player.id;
-                    return (
-                        <motion.div
-                            key={player.id}
-                            animate={{ scale: isTheirTurn ? 1.05 : 1 }}
-                            className={`flex flex-col items-center p-3 rounded-xl transition-all ${isTheirTurn ? 'bg-yellow-500/30 ring-2 ring-yellow-400' : 'bg-white/5'}`}
-                        >
-                            <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg mb-1 ${isTheirTurn ? 'bg-yellow-400 text-black' : 'bg-indigo-500 text-white'}`}>
-                                {player.name[0].toUpperCase()}
-                            </div>
-                            <span className="text-sm text-white font-medium">{player.name}</span>
-                            <div className="flex -space-x-6 mt-2">
-                                {player.hand.map((_, i) => (
-                                    <div key={i} className="w-8 h-12 bg-gradient-to-br from-red-600 to-red-800 rounded-lg border-2 border-white/50 shadow-md" />
-                                ))}
-                            </div>
-                            <span className="text-xs text-white/50 mt-1">{player.hand.length} cards</span>
-                        </motion.div>
-                    );
-                })}
             </div>
 
             {/* Center Play Area */}
-            <div className="flex items-center gap-8 z-10 py-8">
-                {/* Draw Pile */}
-                <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                        if (isMyTurn) {
-                            playSound('draw');
-                            sendAction({ type: 'DRAW_CARD', payload: { playerId } });
-                        }
-                    }}
-                    className={`w-28 h-40 bg-gradient-to-br from-red-600 to-red-800 rounded-2xl border-4 border-white shadow-2xl cursor-pointer flex flex-col items-center justify-center ${!isMyTurn ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                    <span className="text-4xl font-black text-white bg-white/20 rounded-full w-14 h-14 flex items-center justify-center">UNO</span>
-                    <span className="text-white/70 text-sm mt-2">{gameState.deckCount} left</span>
-                </motion.div>
+            <div className="flex-1 flex flex-col md:flex-row items-center justify-center gap-6 md:gap-12 z-10 w-full px-4 -mt-10 md:mt-0">
+                <div className="flex items-center gap-6 md:gap-12 scale-75 md:scale-100 origin-center">
 
-                {/* Discard Pile */}
-                <div className="relative w-28 h-40">
-                    <AnimatePresence>
-                        {topCard && (
-                            <motion.div
-                                key={topCard.id}
-                                initial={{ scale: 0.8, rotate: -10, opacity: 0 }}
-                                animate={{ scale: 1, rotate: 0, opacity: 1 }}
-                                className="absolute inset-0"
-                            >
-                                <Card card={topCard} />
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-
-                {/* Current Color Indicator */}
-                <div className="flex flex-col items-center gap-2">
-                    <span className="text-xs text-white/60 uppercase tracking-widest">Active Color</span>
-                    <div
-                        className="w-16 h-16 rounded-full border-4 border-white shadow-xl transition-colors"
-                        style={{ backgroundColor: colorStyles[gameState.currentColor] || '#000' }}
-                    />
-                </div>
-
-                {/* Start Game Button (only in waiting) */}
-                {gameState.status === 'waiting' && (
-                    <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={() => sendAction({ type: 'START' })}
-                        className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-black text-xl rounded-2xl shadow-2xl"
+                    {/* Draw Pile */}
+                    <motion.div
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                            if (isMyTurn) {
+                                playSound('draw');
+                                sendAction({ type: 'DRAW_CARD', payload: { playerId } });
+                            }
+                        }}
+                        className={`w-24 h-36 md:w-32 md:h-48 bg-gradient-to-br from-red-700 to-red-900 rounded-xl border-4 border-white shadow-2xl cursor-pointer flex flex-col items-center justify-center relative group ${!isMyTurn ? 'opacity-80' : 'hover:scale-105'}`}
                     >
-                        🎮 START GAME
-                    </motion.button>
-                )}
+                        <span className="text-3xl md:text-5xl font-black text-white/90 bg-white/10 rounded-full w-12 h-12 md:w-16 md:h-16 flex items-center justify-center transform -rotate-12 group-hover:rotate-0 transition-transform">
+                            UNO
+                        </span>
+                        <div className="absolute inset-0 rounded-xl shadow-[inset_0_0_20px_rgba(0,0,0,0.5)] pointer-events-none"></div>
+                        <span className="absolute -bottom-8 text-white/60 text-xs md:text-sm font-medium">Draw</span>
+                    </motion.div>
+
+                    {/* Discard Pile */}
+                    <div className="relative w-24 h-36 md:w-32 md:h-48 perspective-500">
+                        <div className="w-full h-full bg-black/20 rounded-xl border-2 border-dashed border-white/20 absolute inset-0 transform translate-y-2"></div>
+                        <AnimatePresence mode='popLayout'>
+                            {topCard && (
+                                <motion.div
+                                    key={topCard.id} // Re-render on new card
+                                    initial={{ scale: 0.5, y: -50, opacity: 0, rotate: Math.random() * 20 - 10 }}
+                                    animate={{ scale: 1, y: 0, opacity: 1, rotate: 0 }}
+                                    className="absolute inset-0 cursor-default"
+                                >
+                                    <div className="pointer-events-none transform hover:scale-110 transition-transform">
+                                        <Card card={topCard} />
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                </div>
+
+                {/* Status / Color Indicator */}
+                <div className="md:absolute md:right-12 md:top-1/2 md:-translate-y-1/2 flex flex-row md:flex-col items-center gap-3">
+                    <div className="relative group">
+                        <div
+                            className="w-10 h-10 md:w-16 md:h-16 rounded-full border-4 border-white shadow-lg transition-colors duration-500"
+                            style={{ backgroundColor: colorStyles[gameState.currentColor] }}
+                            title="Current Color"
+                        ></div>
+                        {/* Glow effect */}
+                        <div
+                            className="absolute inset-0 rounded-full blur-xl opacity-50 transition-colors duration-500"
+                            style={{ backgroundColor: colorStyles[gameState.currentColor] }}
+                        ></div>
+                    </div>
+                    <span className="text-xs md:text-sm text-white/60 font-medium uppercase tracking-wider backdrop-blur-md bg-black/20 px-2 py-1 rounded">
+                        Active Color
+                    </span>
+                </div>
             </div>
 
-            {/* Player's Hand */}
-            <div className="w-full flex flex-col items-center pb-4 z-20">
-                {/* UNO Shout Button */}
-                {me && me.hand.length === 1 && isMyTurn && (
+            {/* Waiting: Start Game Button */}
+            {gameState.status === 'waiting' && (
+                <div className="absolute inset-0 z-40 bg-black/60 flex items-center justify-center backdrop-blur-sm">
                     <motion.button
-                        animate={{ scale: [1, 1.1, 1] }}
-                        transition={{ repeat: Infinity, duration: 0.5 }}
-                        onClick={() => sendAction({ type: 'SAY_UNO', payload: { playerId } })}
-                        className="mb-4 px-8 py-3 bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-black text-xl rounded-full shadow-2xl"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => sendAction({ type: 'START' })}
+                        className="px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-black text-2xl rounded-2xl shadow-[0_0_30px_rgba(16,185,129,0.5)] border border-green-400"
                     >
-                        🔊 SHOUT UNO!
+                        START GAME
                     </motion.button>
-                )}
-
-                <div className="flex justify-center -space-x-8 hover:space-x-1 transition-all duration-300">
-                    <AnimatePresence mode="popLayout">
-                        {me?.hand.map((card, index) => (
-                            <motion.div
-                                key={card.id}
-                                initial={{ y: 100, opacity: 0, rotate: -20 }}
-                                animate={{ y: 0, opacity: 1, rotate: (index - (me.hand.length - 1) / 2) * 3 }}
-                                exit={{ y: -100, opacity: 0, scale: 0.5 }}
-                                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                            >
-                                <Card
-                                    card={card}
-                                    onClick={() => handlePlayCard(card)}
-                                    disabled={!isMyTurn}
-                                />
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
                 </div>
-                {me && <span className="text-white/50 text-sm mt-2">You have {me.hand.length} cards</span>}
+            )}
+
+            {/* Player's Hand Area */}
+            <div className="w-full flex flex-col items-center pb-safe-area z-30 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-4 md:pt-8 min-h-[160px] md:min-h-[220px]">
+
+                {/* Controls */}
+                <div className="flex gap-4 mb-2 md:mb-4">
+                    <motion.button
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => sendAction({ type: 'SAY_UNO', payload: { playerId } })}
+                        disabled={!me || me.hand.length !== 1 || !isMyTurn}
+                        className={`px-4 py-1.5 md:px-6 md:py-2 rounded-full font-bold text-sm md:text-lg shadow-lg flex items-center gap-2 ${me && me.hand.length === 1 && isMyTurn
+                                ? 'bg-orange-500 text-white animate-bounce'
+                                : 'bg-gray-700/50 text-white/30 cursor-not-allowed'
+                            }`}
+                    >
+                        <span>📢</span> SHOUT UNO
+                    </motion.button>
+                </div>
+
+                {/* Scrollable Hand */}
+                <div className="w-full overflow-x-auto overflow-y-visible px-4 md:px-8 pb-4 flex justify-center no-scrollbar">
+                    <div className="flex items-end -space-x-8 md:-space-x-12 px-8 min-w-fit">
+                        <AnimatePresence mode="popLayout">
+                            {me?.hand.map((card, index) => {
+                                const isPlayable = isMyTurn && (
+                                    card.color === 'wild' ||
+                                    card.color === gameState.currentColor ||
+                                    card.value === topCard.value // Explicit client-side check for UI feedback
+                                );
+
+                                return (
+                                    <motion.div
+                                        key={card.id}
+                                        layout
+                                        initial={{ y: 100, opacity: 0, rotate: 10 }}
+                                        animate={{
+                                            y: isPlayable ? -10 : 0, // Lift playable cards slightly 
+                                            opacity: 1,
+                                            rotate: (index - (me.hand.length - 1) / 2) * (me.hand.length > 8 ? 2 : 4),
+                                            scale: 1,
+                                            zIndex: index
+                                        }}
+                                        whileHover={{ y: -30, rotate: 0, scale: 1.1, zIndex: 100 }}
+                                        whileTap={{ y: -40, scale: 1.05 }}
+                                        className={`transform-gpu relative transition-all duration-200 ${!isPlayable && isMyTurn ? 'brightness-50 grayscale-[0.5]' : ''}`}
+                                    >
+                                        <div className="w-20 md:w-32 cursor-pointer" onClick={() => handlePlayCard(card)}>
+                                            <Card card={card} />
+                                        </div>
+                                    </motion.div>
+                                );
+                            })}
+                        </AnimatePresence>
+                    </div>
+                </div>
+
+                <div className="text-white/50 text-xs md:text-sm font-medium">
+                    {me ? (isMyTurn ? "Select a card to play" : "Waiting for your turn...") : "Spectating"}
+                </div>
             </div>
 
             {/* Color Picker Modal */}
@@ -207,25 +257,26 @@ export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: 
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center"
+                        className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4"
                     >
                         <motion.div
-                            initial={{ scale: 0.5 }}
+                            initial={{ scale: 0.8 }}
                             animate={{ scale: 1 }}
-                            exit={{ scale: 0.5 }}
-                            className="bg-slate-800 p-8 rounded-3xl shadow-2xl"
+                            exit={{ scale: 0.8 }}
+                            className="bg-slate-800 p-6 md:p-8 rounded-3xl shadow-2xl w-full max-w-sm"
                         >
-                            <h2 className="text-white text-2xl font-bold mb-6 text-center">Choose a Color</h2>
+                            <h2 className="text-white text-xl md:text-2xl font-bold mb-6 text-center">Choose Color</h2>
                             <div className="grid grid-cols-2 gap-4">
                                 {(['red', 'blue', 'green', 'yellow'] as const).map(c => (
                                     <motion.button
                                         key={c}
-                                        whileHover={{ scale: 1.1 }}
                                         whileTap={{ scale: 0.9 }}
                                         onClick={() => handleColorPick(c)}
-                                        className="w-24 h-24 rounded-2xl shadow-lg border-4 border-white/30 transition-all hover:border-white"
+                                        className="h-24 rounded-2xl shadow-inner relative overflow-hidden group border-2 border-transparent hover:border-white transition-all"
                                         style={{ backgroundColor: colorStyles[c] }}
-                                    />
+                                    >
+                                        <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
+                                    </motion.button>
                                 ))}
                             </div>
                         </motion.div>
@@ -239,46 +290,29 @@ export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: 
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center"
+                        className="fixed inset-0 bg-black/90 z-[70] flex flex-col items-center justify-center p-4 text-center"
                     >
-                        <motion.h1
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: 'spring', bounce: 0.5 }}
-                            className="text-7xl font-black text-white mb-6"
-                        >
-                            🎉 GAME OVER 🎉
-                        </motion.h1>
-                        <motion.div
-                            initial={{ y: 50, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            transition={{ delay: 0.3 }}
-                            className="text-5xl font-bold mb-8"
+                        <h1 className="text-5xl md:text-7xl font-black text-white mb-6 animate-bounce">
+                            GAME OVER
+                        </h1>
+                        <div
+                            className="text-3xl md:text-5xl font-bold mb-8"
                             style={{ color: gameState.winnerId === playerId ? '#22c55e' : '#eab308' }}
                         >
                             {gameState.winnerId === playerId ? "🏆 YOU WON! 🏆" : `${gameState.players.find(p => p.id === gameState.winnerId)?.name} WINS!`}
-                        </motion.div>
-                        <motion.button
-                            initial={{ y: 50, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            transition={{ delay: 0.5 }}
-                            whileHover={{ scale: 1.1 }}
+                        </div>
+                        <button
                             onClick={() => window.location.reload()}
-                            className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl font-bold text-white text-2xl shadow-2xl"
+                            className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl font-bold text-white text-xl shadow-lg hover:scale-105 transition-transform"
                         >
-                            🔄 PLAY AGAIN
-                        </motion.button>
+                            Play Again
+                        </button>
                     </motion.div>
                 )}
             </AnimatePresence>
 
             {/* Encrypted Chat */}
-            <Chat
-                roomId={roomId}
-                playerId={playerId}
-                onSendMessage={sendChatMessage}
-                incomingMessages={chatMessages}
-            />
+            <Chat roomId={roomId} playerId={playerId} onSendMessage={sendChatMessage} incomingMessages={chatMessages} />
         </div>
     );
 };

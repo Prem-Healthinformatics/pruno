@@ -88,11 +88,14 @@ export class GameRoom implements DurableObject {
                 const existingPlayer = this.gameState.players.find(p => p.id === action.payload.id);
 
                 if (existingPlayer) {
-                    // Player is reconnecting - update their WebSocket
-                    const session = this.sessions.find(s => s.webSocket === ws);
-                    if (session) {
-                        session.playerId = existingPlayer.id;
+                    // Player is reconnecting
+                    // Update attachment just in case
+                    try {
+                        ws.serializeAttachment({ playerId: existingPlayer.id });
+                    } catch (e) {
+                        // Ignore attachment errors
                     }
+
                     // Send them the current state immediately
                     const sanitizedState = JSON.parse(JSON.stringify(this.gameState));
                     delete sanitizedState.fullDeck;
@@ -120,7 +123,15 @@ export class GameRoom implements DurableObject {
                     hand: []
                 };
 
-                // Associate WebSocket with player
+                // Associate WebSocket with player using Attachment API for persistence
+                try {
+                    ws.serializeAttachment({ playerId: newPlayer.id });
+                } catch (e) {
+                    // Fallback or ignore
+                }
+
+                // Keep session array for backward compat or quick lookups if needed, 
+                // but rely on getWebSockets() for broadcast
                 const session = this.sessions.find(s => s.webSocket === ws);
                 if (session) {
                     session.playerId = newPlayer.id;
@@ -282,22 +293,24 @@ export class GameRoom implements DurableObject {
 
         const message = JSON.stringify({ type: 'STATE_UPDATE', payload: sanitizedState });
 
-        for (const session of this.sessions) {
+        // Robust broadcast using getWebSockets() to reach all connections, 
+        // even those not in the volatile 'sessions' array (e.g. after Isolate reset)
+        for (const ws of this.state.getWebSockets()) {
             try {
-                session.webSocket.send(message);
+                ws.send(message);
             } catch (e) {
-                // WebSocket may be closed
+                // Socket dead
             }
         }
     }
 
     private broadcast(message: any) {
         const data = JSON.stringify(message);
-        for (const session of this.sessions) {
+        for (const ws of this.state.getWebSockets()) {
             try {
-                session.webSocket.send(data);
+                ws.send(data);
             } catch (e) {
-                // WebSocket may be closed
+                // Socket dead
             }
         }
     }

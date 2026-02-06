@@ -90,12 +90,34 @@ export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: 
                 <div className="flex gap-3 md:gap-6 px-4">
                     {others.map(player => {
                         const isTheirTurn = gameState.players[gameState.turnIndex]?.id === player.id;
+                        const canCatch = player.hand.length === 1 && !player.saidUno;
+
                         return (
                             <motion.div
                                 key={player.id}
                                 animate={{ scale: isTheirTurn ? 1.05 : 1 }}
-                                className={`flex flex-col items-center p-2 md:p-3 rounded-xl min-w-[70px] md:min-w-[100px] transition-colors ${isTheirTurn ? 'bg-yellow-500/20 ring-1 ring-yellow-400' : 'bg-black/20'}`}
+                                className={`relative flex flex-col items-center p-2 md:p-3 rounded-xl min-w-[70px] md:min-w-[100px] transition-colors ${isTheirTurn ? 'bg-yellow-500/20 ring-1 ring-yellow-400' : 'bg-black/20'}`}
                             >
+                                {/* Said UNO indicator */}
+                                {player.saidUno && (
+                                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg z-20 whitespace-nowrap">
+                                        UNO!
+                                    </div>
+                                )}
+
+                                {/* Catch Button */}
+                                {canCatch && (
+                                    <motion.button
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        whileTap={{ scale: 0.9 }}
+                                        onClick={() => sendAction({ type: 'CATCH_UNO', payload: { playerId, targetId: player.id } })}
+                                        className="absolute -top-4 left-1/2 -translate-x-1/2 bg-red-600 border border-white text-white text-[10px] font-black px-2 py-1 rounded-full shadow-xl z-30 animate-pulse whitespace-nowrap hover:scale-110"
+                                    >
+                                        CATCH!
+                                    </motion.button>
+                                )}
+
                                 <div className="relative">
                                     <div className={`w-10 h-10 md:w-14 md:h-14 rounded-full flex items-center justify-center font-bold text-sm md:text-xl mb-1 shadow-lg ${isTheirTurn ? 'bg-yellow-400 text-black' : 'bg-indigo-600 text-white'}`}>
                                         {player.name[0].toUpperCase()}
@@ -194,12 +216,19 @@ export const GameBoard = ({ roomId, playerName }: { roomId: string; playerName: 
             <div className="w-full flex flex-col items-center pb-safe-area z-30 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-4 md:pt-8 min-h-[160px] md:min-h-[220px]">
 
                 {/* Controls */}
-                <div className="flex gap-4 mb-2 md:mb-4">
+                <div className="flex gap-4 mb-2 md:mb-4 relative">
+                    {/* Self Said UNO Indicator */}
+                    {me && me.saidUno && (
+                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-[10px] md:text-xs font-bold px-3 py-1 rounded-full shadow-lg z-20 whitespace-nowrap animate-bounce">
+                            YOU SAID UNO!
+                        </div>
+                    )}
+
                     <motion.button
                         whileTap={{ scale: 0.9 }}
                         onClick={() => sendAction({ type: 'SAY_UNO', payload: { playerId } })}
-                        disabled={!me || me.hand.length !== 1 || !isMyTurn}
-                        className={`px-4 py-1.5 md:px-6 md:py-2 rounded-full font-bold text-sm md:text-lg shadow-lg flex items-center gap-2 ${me && me.hand.length === 1 && isMyTurn
+                        disabled={!me || me.hand.length > 2 || me.saidUno}
+                        className={`px-4 py-1.5 md:px-6 md:py-2 rounded-full font-bold text-sm md:text-lg shadow-lg flex items-center gap-2 ${me && me.hand.length <= 2 && !me.saidUno
                                 ? 'bg-orange-500 text-white animate-bounce'
                                 : 'bg-gray-700/50 text-white/30 cursor-not-allowed'
                             }`}

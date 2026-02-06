@@ -10,6 +10,7 @@ export interface Player {
     name: string;
     hand: Card[];
     isAudience?: boolean;
+    saidUno?: boolean;
 }
 export interface GameState {
     roomId: string;
@@ -23,6 +24,6 @@ export interface GameState {
     currentColor: Color;
 }
 export interface GameAction {
-    type: 'JOIN' | 'START' | 'PLAY_CARD' | 'DRAW_CARD' | 'SAY_UNO';
+    type: 'JOIN' | 'START' | 'PLAY_CARD' | 'DRAW_CARD' | 'SAY_UNO' | 'CATCH_UNO';
     payload?: any;
 }

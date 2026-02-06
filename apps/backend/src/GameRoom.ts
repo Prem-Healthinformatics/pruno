@@ -149,6 +149,7 @@ export class GameRoom implements DurableObject {
 
                 this.gameState.players.forEach(player => {
                     player.hand = deck.splice(0, 7);
+                    player.saidUno = false;
                 });
 
                 let firstCard = deck.shift()!;
@@ -219,6 +220,11 @@ export class GameRoom implements DurableObject {
                             this.gameState.currentColor = action.payload.chosenColor || 'red';
                         }
 
+                        if (player.hand.length > 1) {
+                            player.saidUno = false;
+                        }
+
+                        // Check if they won
                         if (player.hand.length === 0) {
                             this.gameState.status = 'finished';
                             this.gameState.winnerId = player.id;
@@ -231,8 +237,30 @@ export class GameRoom implements DurableObject {
 
             case 'SAY_UNO':
                 const shouter = this.gameState.players.find(p => p.id === action.payload.playerId);
-                if (shouter && shouter.hand.length === 1) {
+                // Allow shouting if they have 1 or 2 cards (anticipating the play)
+                if (shouter && shouter.hand.length <= 2) {
+                    shouter.saidUno = true;
                     this.broadcast({ type: 'NOTIFICATION', message: `${shouter.name} shouted UNO!` });
+                    // Broadcast state to update UI (show they said it)
+                    await this.saveAndBroadcast();
+                }
+                break;
+
+            case 'CATCH_UNO':
+                const catcher = this.gameState.players.find(p => p.id === action.payload.playerId);
+                const target = this.gameState.players.find(p => p.id === action.payload.targetId);
+
+                if (catcher && target && target.hand.length === 1 && !target.saidUno) {
+                    // Penalty!
+                    const fullDeck = (this.gameState as any).fullDeck as Card[];
+                    if (fullDeck && fullDeck.length >= 2) {
+                        target.hand.push(...fullDeck.splice(0, 2));
+                        this.gameState.deckCount = fullDeck.length;
+                        target.saidUno = false; // Reset
+
+                        this.broadcast({ type: 'NOTIFICATION', message: `${catcher.name} caught ${target.name} not saying UNO! (+2 cards)` });
+                        await this.saveAndBroadcast();
+                    }
                 }
                 break;
 
@@ -244,6 +272,7 @@ export class GameRoom implements DurableObject {
                         const drawnCard = fullDeck.shift();
                         if (drawnCard) {
                             drawPlayer.hand.push(drawnCard);
+                            drawPlayer.saidUno = false; // Safety reset
                             this.gameState.deckCount = fullDeck.length;
                         }
 
